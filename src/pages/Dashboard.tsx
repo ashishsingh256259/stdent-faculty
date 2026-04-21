@@ -41,15 +41,16 @@ export default function Dashboard() {
   const handleCreateClass = async () => {
     if (!newClassName || !user) return;
     const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const docRef = doc(collection(db, 'classrooms'));
     const classData = {
+      classId: docRef.id,
       name: newClassName,
       description: '',
       teacherId: user.uid,
       inviteCode,
       createdAt: serverTimestamp()
     };
-    const docRef = await addDoc(collection(db, 'classrooms'), classData);
-    await setDoc(doc(db, 'classrooms', docRef.id), { ...classData, classId: docRef.id });
+    await setDoc(docRef, classData);
     await setDoc(doc(db, 'classrooms', docRef.id, 'members', user.uid), { role: 'teacher' });
     setNewClassName('');
     setShowCreateModal(false);

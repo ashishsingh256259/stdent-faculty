@@ -70,12 +70,62 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["responseId", "pollId", "studentId", "optionIndex"]
+    },
+    "Notification": {
+      "title": "User Notification",
+      "description": "Alerts for new questions, poll updates, or shared resources.",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["new_question", "poll_update", "resource_shared", "system"] },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "classId": { "type": "string" },
+        "link": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["notificationId", "userId", "type", "title", "message", "read"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "General discussion message within a classroom.",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string" },
+        "classId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["messageId", "classId", "authorId", "content"]
+    },
+    "Resource": {
+      "title": "Classroom Resource",
+      "description": "Educational materials shared by the teacher.",
+      "type": "object",
+      "properties": {
+        "resourceId": { "type": "string" },
+        "classId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["link", "document", "video", "other"] },
+        "url": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["resourceId", "classId", "title", "url", "type"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "User profiles."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User-specific alerts and updates."
     },
     "/classrooms/{classId}": {
       "schema": "Classroom",
@@ -96,6 +146,14 @@
     "/classrooms/{classId}/polls/{pollId}/responses/{userId}": {
       "schema": "PollResponse",
       "description": "User responses to a specific poll."
+    },
+    "/classrooms/{classId}/chat_messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "General discussion messages."
+    },
+    "/classrooms/{classId}/resources/{resourceId}": {
+      "schema": "Resource",
+      "description": "Shared educational materials."
     }
   }
 }
