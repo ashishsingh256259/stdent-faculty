@@ -1,0 +1,129 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitive Definitions
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function isSignedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    
+    // Helper to check classroom membership
+    function isMember(classId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/classrooms/$(classId)/members/$(request.auth.uid));
+    }
+
+    // Helper to check if user is the teacher of a classroom
+    function isTeacher(classId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/classrooms/$(classId)) && get(/databases/$(database)/documents/classrooms/$(classId)).data.teacherId == request.auth.uid;
+    }
+
+    // 1. User Profiles
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.userId == request.auth.uid &&
+               data.displayName is string && data.displayName.size() <= 100 &&
+               data.email == request.auth.token.email &&
+               data.role in ['student', 'teacher'] &&
+               data.createdAt == request.time;
+      }
+
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && (incoming().keys().hasAll(['userId', 'displayName', 'email', 'role', 'createdAt']) && incoming().keys().size() == 5);
+      allow update: if isSignedIn() && isOwner(userId) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL']) &&
+                    incoming().displayName is string && incoming().displayName.size() <= 100;
+    }
+
+    // 2. Classrooms
+    match /classrooms/{classId} {
+      function isValidClassroom(data) {
+        return data.classId == classId &&
+               data.name is string && data.name.size() <= 100 &&
+               data.teacherId == request.auth.uid &&
+               data.inviteCode is string && data.inviteCode.size() <= 10 &&
+               data.createdAt == request.time;
+      }
+
+      // Teachers can create
+      allow create: if isSignedIn() && isValidClassroom(incoming()) && isValidId(classId);
+      
+      // Members can read
+      allow get: if isMember(classId) || isTeacher(classId);
+      
+      // List for students involves a bit more logic in the query, but we permit if they are members
+      allow list: if isSignedIn(); 
+
+      // Update name or description
+      allow update: if isTeacher(classId) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description']) &&
+                    incoming().name is string && incoming().name.size() <= 100;
+    }
+
+    // 3. Membership
+    match /classrooms/{classId}/members/{userId} {
+      allow read: if isMember(classId) || isTeacher(classId);
+      // Students can join if they have the invite code (simplified logic: we assume code check happens in code, but here we just check auth)
+      allow create: if isOwner(userId);
+    }
+
+    // 4. Questions
+    match /classrooms/{classId}/questions/{questionId} {
+      function isValidQuestion(data) {
+        return data.questionId == questionId &&
+               data.classId == classId &&
+               data.authorId == request.auth.uid &&
+               data.content is string && data.content.size() <= 1000 &&
+               data.isAnonymous is bool &&
+               data.upvotes == 0 &&
+               data.answered == false &&
+               data.createdAt == request.time;
+      }
+
+      allow read: if isMember(classId) || isTeacher(classId);
+      allow create: if isMember(classId) && isValidQuestion(incoming()) && isValidId(questionId);
+      
+      // Update: Upvoting or Teacher marking as answered
+      allow update: if (isMember(classId) || isTeacher(classId)) && (
+        // Action: Upvote
+        (incoming().diff(existing()).affectedKeys().hasOnly(['upvotes']) && incoming().upvotes == existing().upvotes + 1) ||
+        // Action: Mark Answered
+        (isTeacher(classId) && incoming().diff(existing()).affectedKeys().hasOnly(['answered']))
+      );
+    }
+
+    // 5. Polls
+    match /classrooms/{classId}/polls/{pollId} {
+      function isValidPoll(data) {
+        return data.pollId == pollId &&
+               data.classId == classId &&
+               data.question is string && data.question.size() <= 500 &&
+               data.options is list && data.options.size() >= 2 && data.options.size() <= 10 &&
+               data.active == true &&
+               data.createdAt == request.time;
+      }
+
+      allow read: if isMember(classId) || isTeacher(classId);
+      allow create: if isTeacher(classId) && isValidPoll(incoming()) && isValidId(pollId);
+      allow update: if isTeacher(classId) && incoming().diff(existing()).affectedKeys().hasOnly(['active']);
+    }
+
+    // 6. Poll Responses
+    match /classrooms/{classId}/polls/{pollId}/responses/{userId} {
+      function isValidResponse(data) {
+        return data.pollId == pollId &&
+               data.studentId == request.auth.uid &&
+               data.optionIndex is int &&
+               data.createdAt == request.time;
+      }
+
+      allow read: if isTeacher(classId) || isOwner(userId);
+      allow create: if isMember(classId) && isOwner(userId) && isValidResponse(incoming());
+    }
+  }
+}

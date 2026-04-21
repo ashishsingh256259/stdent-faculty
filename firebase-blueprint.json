@@ -1,0 +1,101 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Public profile information for students and teachers.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["student", "teacher"] },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "email", "role"]
+    },
+    "Classroom": {
+      "title": "Classroom",
+      "description": "A group where teachers and students interact.",
+      "type": "object",
+      "properties": {
+        "classId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "inviteCode": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["classId", "name", "teacherId", "inviteCode"]
+    },
+    "Question": {
+      "title": "Q&A Question",
+      "description": "An anonymous or signed question asked in a classroom.",
+      "type": "object",
+      "properties": {
+        "questionId": { "type": "string" },
+        "classId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "content": { "type": "string" },
+        "isAnonymous": { "type": "boolean" },
+        "upvotes": { "type": "number" },
+        "answered": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["questionId", "classId", "authorId", "content"]
+    },
+    "Poll": {
+      "title": "Classroom Poll",
+      "description": "A quick pulse check poll created by the teacher.",
+      "type": "object",
+      "properties": {
+        "pollId": { "type": "string" },
+        "classId": { "type": "string" },
+        "question": { "type": "string" },
+        "options": { "type": "array", "items": { "type": "string" } },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pollId", "classId", "question", "options"]
+    },
+    "PollResponse": {
+      "title": "Poll Response",
+      "description": "A student's answer to a poll.",
+      "type": "object",
+      "properties": {
+        "responseId": { "type": "string" },
+        "pollId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "optionIndex": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["responseId", "pollId", "studentId", "optionIndex"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/classrooms/{classId}": {
+      "schema": "Classroom",
+      "description": "Classroom metadata."
+    },
+    "/classrooms/{classId}/members/{userId}": {
+      "schema": { "type": "object", "properties": { "role": { "type": "string" } } },
+      "description": "Membership mapping for classrooms."
+    },
+    "/classrooms/{classId}/questions/{questionId}": {
+      "schema": "Question",
+      "description": "Questions in a classroom."
+    },
+    "/classrooms/{classId}/polls/{pollId}": {
+      "schema": "Poll",
+      "description": "Polls in a classroom."
+    },
+    "/classrooms/{classId}/polls/{pollId}/responses/{userId}": {
+      "schema": "PollResponse",
+      "description": "User responses to a specific poll."
+    }
+  }
+}
