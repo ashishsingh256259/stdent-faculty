@@ -31,15 +31,17 @@ export default function Dashboard() {
         setClassrooms(snapshot.docs.map(doc => ({ ...doc.data() } as Classroom)));
       });
     } else {
-      const qMemberships = query(collection(db, 'classrooms'));
-      return onSnapshot(qMemberships, (snapshot) => {
+      // For now, students list all classrooms, but restricted by security rules.
+      // In a real app we'd query by membership subcollection.
+      const q = query(collection(db, 'classrooms'));
+      return onSnapshot(q, (snapshot) => {
          setClassrooms(snapshot.docs.map(doc => ({ ...doc.data() } as Classroom)));
       });
     }
   }, [user, profile]);
 
   const handleCreateClass = async () => {
-    if (!newClassName || !user) return;
+    if (!newClassName || !user || !profile) return;
     const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const docRef = doc(collection(db, 'classrooms'));
     const classData = {
@@ -47,23 +49,35 @@ export default function Dashboard() {
       name: newClassName,
       description: '',
       teacherId: user.uid,
+      teacherName: profile.displayName,
       inviteCode,
       createdAt: serverTimestamp()
     };
     await setDoc(docRef, classData);
-    await setDoc(doc(db, 'classrooms', docRef.id, 'members', user.uid), { role: 'teacher' });
+    // Add creator as teacher member
+    await setDoc(doc(db, 'classrooms', docRef.id, 'members', user.uid), { 
+      userId: user.uid,
+      displayName: profile.displayName,
+      role: 'teacher',
+      joinedAt: serverTimestamp()
+    });
     setNewClassName('');
     setShowCreateModal(false);
   };
 
   const handleJoinClass = async () => {
-    if (!inviteCodeInput || !user) return;
+    if (!inviteCodeInput || !user || !profile) return;
     const { getDocs } = await import('firebase/firestore');
     const q = query(collection(db, 'classrooms'), where('inviteCode', '==', inviteCodeInput.toUpperCase()));
     const snap = await getDocs(q);
     if (!snap.empty) {
       const cls = snap.docs[0];
-      await setDoc(doc(db, 'classrooms', cls.id, 'members', user.uid), { role: 'student' });
+      await setDoc(doc(db, 'classrooms', cls.id, 'members', user.uid), { 
+        userId: user.uid,
+        displayName: profile.displayName,
+        role: 'student',
+        joinedAt: serverTimestamp()
+      });
       setInviteCodeInput('');
       setShowJoinModal(false);
     } else {
